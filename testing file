@@ -1,0 +1,129 @@
+<?php
+/*__________________________________________________________________________
+Created By	: Sandeep Vishwakarma
+Created On	: 17 Nov, 2014
+Desciption	: To add all rosters by managers
+Change History :
+_____________________________________________________________________________
+*/
+
+/*
+This functions file is use for return all user requirements
+*/
+
+// Include connection file
+include_once 'config.php';
+include_once 'pushFunctions.php';
+// Creat Group class
+class Rosters {
+	
+// Function for add all roster by managers
+	public function addRosters($groupId,$startDate,$endDate,$image,$sessionId)
+	{   
+		$session=mysql_query("select user_id,name from tbl_users where user_id =(select manager_id from tbl_groups where group_id='".$groupId."') and user_session='".$sessionId."'");
+		$checkSession=mysql_num_rows($session);
+		if($checkSession){
+			$userrow=mysql_fetch_assoc($session);
+			mysql_query("insert into tbl_rosters set group_id='".$groupId."',start_date='".$startDate."',end_date='".$endDate."'");
+			$roster_id=mysql_insert_id();
+			if($roster_id){
+				$groupName=mysql_result(mysql_query("select group_name from tbl_groups where group_id='".$groupId."'"),0);
+				if($image){
+					foreach($image as $key=>$value){
+						$name = $value['name'];
+						$temp_name = $value['tmp_name'];
+						$size = $value['size'];
+						$picname = $roster_id . time(). '_' . $name;
+						$target_path = "RosterImages/".$picname;
+						$url=$_SESSION['full_url']."RosterImages/".$picname;
+						if(move_uploaded_file($temp_name,$target_path)){
+							chmod ($target_path, 0644);
+							$query1 = "update tbl_rosters SET image_url='".$target_path."',type='image' where roster_id = '".$roster_id."'";
+							if(mysql_query($query1)){
+								$push = new push();
+								$qry=mysql_query("select device_type,device_id from tbl_users as u inner join tbl_group_details as g on u.user_id=g.user_id where g.group_id='1' and u.device_id!=''");
+								while($rownum=mysql_fetch_assoc($qry)){
+									$message=	$groupName." has a new Roster!";
+									if($rownum['device_type']=='iphone'){
+										$push->push_iphone($rownum['device_id'],$message,$userrow['name']);  // Call push function for iphone device
+									}else{ $data[]=$rownum['device_id'];
+										$push->push_android($data,$message,$userrow['name']); // Call push function for android device
+									}
+								}
+								$responce['success']="1";
+								$responce['deviceid']=$data;
+								$responce['type']=$rownum['device_type'];
+								//$responce['file']=$image;
+								//$responce['picname']=$picname;
+								$responce['response_string'] = "The new Roster for ".$groupName." has successfully been sent to the Bubble";
+							}else{
+								mysql_query("delete from tbl_rosters where roster_id='".$roster_id."'");
+								$responce['success']="0";
+								//$responce['file']=$image;
+								$responce['response_string'] = "Oops there was an issue, please try add the new Roster again or contact us at help@rosterbubble.com";	
+							}
+						}else{ 		
+							mysql_query("delete from tbl_rosters where roster_id='".$roster_id."'");
+							$responce['success']="0";
+							//$responce['file']=$image;
+							$responce['response_string'] = "Oops there was an issue, please try add the new Roster again or contact us at help@rosterbubble.com";		
+						 }
+					}
+				}else{
+					mysql_query("delete from tbl_rosters where roster_id='".$roster_id."'");
+					$responce['success']="0";
+					//$responce['file']=$image;
+					$responce['response_string'] = "Please check your internet connection and try add the new Roster again. If you need help contact us at help@rosterbubble.com";
+				}
+			}else{ 
+					$responce['success']="0";
+					//$responce['file']=$image;
+					$responce['response_string'] = "Oops there was an issue, please try add the new Roster again or contact us at help@rosterbubble.com";
+			}
+		}else{
+			$responce['success']="5";
+			$responce['response_string'] = "Session expired";	
+		}
+		return $responce;	
+	}
+	
+	//Functions for get all rosters by bubbles
+	public function getAllRostersByBubbles($userId,$groupId,$startDate,$endDate,$sessionId)
+	{	$session=mysql_query("select user_id from tbl_users where user_id ='".$userId."' and user_session='".$sessionId."'");
+		$checkSession=mysql_num_rows($session);
+		if($checkSession){
+			//$sql = mysql_query("SELECT * FROM `tbl_rosters` where date_format(start_date,'%Y-%m-%d')>='$startDate' OR date_format(end_date,'%Y-%m-%d')<='$endDate'");
+			//$sql = mysql_query("SELECT r.*,g.group_name FROM `tbl_rosters` as r inner join tbl_groups as g on r.group_id=g.group_id where date_format(start_date,'%Y-%m-%d')>='$startDate' OR date_format(end_date,'%Y-%m-%d')<='$endDate'");
+			$sql = mysql_query("SELECT r.*,g.group_name FROM `tbl_rosters` as r inner join tbl_groups as g on r.group_id=g.group_id where (( '$startDate' between date_format(start_date,'%Y-%m-%d') and date_format(end_date,'%Y-%m-%d')) OR ( '$endDate' between date_format(start_date,'%Y-%m-%d') and date_format(end_date,'%Y-%m-%d'))) and g.group_id='".$groupId."'");
+			$checkdata = mysql_num_rows($sql);
+			if($checkdata){
+				while($row=mysql_fetch_assoc($sql)){
+					$data[]=$row;
+				}
+				// to get all roster start date and end date by particular group id
+				$qry=mysql_query("select start_date,end_date from tbl_rosters where (start_date between DATE_SUB(now(),INTERVAL 4 WEEK) and DATE_ADD(now(),INTERVAL 4 WEEK)) and group_id='".$groupId."' group by start_date order by start_date ASC");
+				while($daterow=mysql_fetch_assoc($qry)){
+					$dataArray[]=$daterow;
+				}
+				$responce['success']='1';
+				$responce['response_string']=$data;  // Array for sending all roster data between startdate and end date to the client
+				$responce['dateArray']=$dataArray;   // Array for sending all start date and end date from the roster table to the client
+				//$responce['query']="select user_id from tbl_users where user_id =(select manager_id from tbl_groups where group_id='".$groupId."') and user_session='".$sessionId."'";
+			}else{	
+				$responce['success']='0';
+				$responce['response_string']="Please check your internet connection and try again. If you need help contact us at help@rosterbubble.com";
+				$responce['dateArray']='';
+				//$responce['query']="select user_id from tbl_users where user_id ='".$userId."' and user_session='".$sessionId."'";
+
+			}
+		}else{
+			$responce['success']="5";
+			$responce['response_string'] = "Session expired";	
+			$responce['query']="select user_id from tbl_users where user_id ='".$userId."' and user_session='".$sessionId."'";
+
+		}
+		return $responce;
+	}	
+
+}
+?>
