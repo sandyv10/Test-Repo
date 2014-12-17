@@ -18,8 +18,7 @@ include_once 'pushFunctions.php';
 class Rosters {
 	
 // Function for add all roster by managers
-	public function addRosters($groupId,$startDate,$endDate,$image,$sessionId)
-	{   
+	public function addRosters($groupId,$startDate,$endDate,$image,$sessionId){   
 		$session=mysql_query("select user_id,name from tbl_users where user_id =(select manager_id from tbl_groups where group_id='".$groupId."') and user_session='".$sessionId."'");
 		$checkSession=mysql_num_rows($session);
 		if($checkSession){
@@ -88,8 +87,8 @@ class Rosters {
 	}
 	
 	//Functions for get all rosters by bubbles
-	public function getAllRostersByBubbles($userId,$groupId,$startDate,$endDate,$sessionId)
-	{	$session=mysql_query("select user_id from tbl_users where user_id ='".$userId."' and user_session='".$sessionId."'");
+	public function getAllRostersByBubbles($userId,$groupId,$startDate,$endDate,$sessionId){
+		$session=mysql_query("select user_id from tbl_users where user_id ='".$userId."' and user_session='".$sessionId."'");
 		$checkSession=mysql_num_rows($session);
 		if($checkSession){
 			//$sql = mysql_query("SELECT * FROM `tbl_rosters` where date_format(start_date,'%Y-%m-%d')>='$startDate' OR date_format(end_date,'%Y-%m-%d')<='$endDate'");
